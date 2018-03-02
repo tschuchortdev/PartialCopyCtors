@@ -1,0 +1,14 @@
+
+/*sourceSets {
+    main {
+        java {
+            srcDir "${buildDir.absolutePath}/tmp/kapt/main/kotlinGenerated/"
+        }
+    }
+}*/
+
+dependencies {
+    kapt project(":processor")
+    compileOnly project(":processor")
+}
+
