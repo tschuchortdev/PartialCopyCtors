@@ -11,7 +11,7 @@ abstract class Base1() : Interface1 {
 
 abstract class Base3 : Base1()
 
-abstract class Base2(open val baseField: Int) : Interface1 {
+abstract class Base2<T>(open val baseField: Int) : Interface1 {
 }
 
 @PartialCopyCtors
@@ -28,12 +28,18 @@ data class C(val a: Int = 1, val b: Int) : Base1(), Interface2 {
 }
 
 @PartialCopyCtors
-data class D(val a: Int = 1) : Base2(1), Interface2
+data class D(val a: Int = 1, val b: List<List<Int>>, override val baseField: Int) : Base2<Unit>(1), Interface2
 
 @PartialCopyCtors
-data class E<T : List<*>, out S : List<T>>(val a: T, val b: List<out S>, override val baseField: Int) : Base2(baseField), Interface2
+data class E<T : List<*>, out S : List<T>>(val a: T, val b: List<out S>, override val baseField: Int) : Base2<Unit>(baseField), Interface2
+
+@PartialCopyCtors
+data class F(val a: List<Int>, val b: java.util.List<Int>, val c: MutableList<java.util.List<Int>>, override val baseField: Int)
+	: Base2<Unit>(baseField)
 
 fun main(args: Array<String>) {
-	print("hello")
+	println("hello")
 	EFactory
+	DFactory
+	FFactory
 }

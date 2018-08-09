@@ -2,14 +2,11 @@ package com.tschuchort.copyctor.processor
 
 import com.google.auto.service.AutoService
 import com.squareup.kotlinpoet.*
-import com.sun.org.apache.bcel.internal.Repository.getSuperClasses
-import jdk.nashorn.internal.objects.NativeArray.forEach
 import me.eugeniomarletti.kotlin.metadata.*
 import me.eugeniomarletti.kotlin.metadata.jvm.internalName
-import org.jetbrains.kotlin.serialization.ProtoBuf
-import org.jetbrains.kotlin.serialization.deserialization.NameResolver
+import me.eugeniomarletti.kotlin.metadata.shadow.metadata.ProtoBuf
+import me.eugeniomarletti.kotlin.metadata.shadow.metadata.deserialization.NameResolver
 import java.io.File
-import java.io.StringWriter
 import javax.annotation.processing.AbstractProcessor
 import javax.annotation.processing.Processor
 import javax.annotation.processing.RoundEnvironment
@@ -29,6 +26,7 @@ internal class CopyCtorProcessor : AbstractProcessor() {
 		const val GENERATE_KOTLIN_CODE_OPTION = "generate.kotlin.code"
 		const val GENERATE_ERRORS_OPTION = "generate.error"
 		const val FILE_SUFFIX_OPTION = "suffix"
+		val annotationClass = PartialCopyCtors::class
 	}
 
 	private val kaptKotlinGeneratedDir by lazy { processingEnv.options[KAPT_KOTLIN_GENERATED_OPTION_NAME] }
@@ -37,19 +35,14 @@ internal class CopyCtorProcessor : AbstractProcessor() {
 	private val generatedFilesSuffix by lazy { processingEnv.options[FILE_SUFFIX_OPTION] ?: "Generated"}
 
 	private val typeUtils get() = processingEnv.typeUtils
-
 	private val elemUtils get() = processingEnv.elementUtils
 
-	override fun getSupportedAnnotationTypes() = setOf(PartialCopyCtors::class.java.name)
-
+	override fun getSupportedAnnotationTypes() = setOf(annotationClass.java.name)
 	override fun getSupportedOptions() = setOf(KAPT_KOTLIN_GENERATED_OPTION_NAME, GENERATE_KOTLIN_CODE_OPTION, GENERATE_ERRORS_OPTION)
-
 	override fun getSupportedSourceVersion() = SourceVersion.latestSupported()!!
 
 	override fun process(annotations: MutableSet<out TypeElement>, roundEnv: RoundEnvironment): Boolean {
-		val annotatedElems = roundEnv.getElementsAnnotatedWith(PartialCopyCtors::class.java)
-
-		for(annotatedElem in annotatedElems) {
+		for(annotatedElem in roundEnv.getElementsAnnotatedWith(annotationClass.java)) {
 			val className = annotatedElem.simpleName.toString()
 			val packageName = processingEnv.elementUtils.getPackageOf(annotatedElem).qualifiedName.toString()
 
@@ -89,7 +82,7 @@ internal class CopyCtorProcessor : AbstractProcessor() {
 								.addModifiers(KModifier.FINAL)
 								.primaryConstructor(FunSpec.constructorBuilder()
 										.addModifiers(KModifier.PRIVATE).build())
-								.companionObject(TypeSpec.companionObjectBuilder()
+								.addType(TypeSpec.companionObjectBuilder()
 										.addFunctions(
 												superClassesWithOverridenMember.map { generateCopyFun(annotatedTypeElem, it) }
 										).build()
@@ -173,7 +166,7 @@ internal class CopyCtorProcessor : AbstractProcessor() {
 			return false
 
 		val superClassMembers = elemUtils.getAllMembers(declaringClass.superclass.asElement() as TypeElement)
-				.filter(Element::isMethod).cast<ExecutableElement>()
+				.filter(Element::isMethod).castList<ExecutableElement>()
 
 		return superClassMembers.any { elemUtils.overrides(this, it, declaringClass) }
 	}
@@ -194,9 +187,7 @@ internal fun String.isGetterNameFor(fieldName: String)
 		// due to how Kotlin translates field names into getter names "fieldName" and "FieldName" are the same
 		= startsWith("get") && removePrefix("get").matches(Regex("($fieldName|${fieldName.capitalize()})"))
 
-internal fun List<String>.concat() = fold("", String::plus)
 
-internal fun <T> List<T>.intersperse(elem: T) = flatMap { listOf(it, elem) }.dropLast(1)
 
 internal fun ParameterSpec.Companion.getAsBuilder(elem: VariableElement) = ParameterSpec.builder(
 		name = elem.simpleName.toString(),
@@ -208,13 +199,13 @@ internal fun Element.isDataClass() = (kotlinMetadata as? KotlinClassMetadata)?.d
 internal fun TypeElement.asTypeName() = asType().asTypeName()
 
 internal val TypeElement.declaredFields
-	get() = enclosedElements.filter(Element::isField).cast<VariableElement>()
+	get() = enclosedElements.filter(Element::isField).castList<VariableElement>()
 
 internal val TypeElement.declaredGetters
-	get() = enclosedElements.filter(Element::isGetter).cast<ExecutableElement>()
+	get() = enclosedElements.filter(Element::isGetter).castList<ExecutableElement>()
 
 internal val TypeElement.constructors
-	get() = enclosedElements.filter(Element::isConstructor).cast<ExecutableElement>()
+	get() = enclosedElements.filter(Element::isConstructor).castList<ExecutableElement>()
 
 internal fun Element.isConstructor() = kind == ElementKind.CONSTRUCTOR
 internal fun Element.isMethod() = kind == ElementKind.METHOD
@@ -228,5 +219,3 @@ class AnnotationProcessingException(message: String, val element: Element? = nul
 	operator fun component1() = message
 	operator fun component2() = element
 }
-
-internal inline fun <reified R : Any> List<*>.cast() = map { it as R }
